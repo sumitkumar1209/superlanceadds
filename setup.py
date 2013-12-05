@@ -17,7 +17,7 @@ except (IOError, OSError):
     README = ''
 
 setup(name='superlanceadds',
-      version='0.1-dev',
+      version='0.1.1-dev',
       license='BSD-derived (http://www.repoze.org/LICENSE.txt)',
       description='moar superlance plugins for supervisord',
       long_description=README,
