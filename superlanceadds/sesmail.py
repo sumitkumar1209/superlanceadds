@@ -89,11 +89,10 @@ class SesMail:
                     break
                 continue
 
-            pheaders['program'] = self.program
             pheaders['region'] = self.region
             pheaders['instance-id'] = self.instance_id
 
-            msg = ('Process %(processname)s (%(program)s), in group %(groupname)s, '
+            msg = ('Process %(processname)s, in group %(groupname)s, '
                    'on instance %(instance-id)s, in region %(region)s exited '
                    'unexpectedly (pid %(pid)s) from state %(from_state)s' %
                    pheaders)
