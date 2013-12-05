@@ -114,11 +114,11 @@ class SesMail:
     def mail(self, subject, msg):
         dakwargs = {}
         if self.aws_id:
-            dakwargs['aws_access_key'] = self.aws_id
+            dakwargs['aws_access_key_id'] = self.aws_id
         if self.aws_secret:
             dakwargs['aws_secret_access_key'] = self.aws_secret
         conn = boto.ses.connect_to_region(self.region, **dakwargs)
-        resp = conn.send_email(self.from_email, subject, msg, [self.to_email])
+        resp = conn.send_email(self.emailfrom, subject, msg, [self.emailto])
         self.stderr.write('SES Response:\n%s\n' % resp)
         self.stderr.write('Mailed:\n\n%s\n' % msg)
 
