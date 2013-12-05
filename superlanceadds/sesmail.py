@@ -10,8 +10,6 @@
 # [eventlistener:sesmail]
 # command=/usr/bin/sesmail -o hostname -a -m notify-on-crash@domain.com -f crash-notifier@domain.com'
 # events=PROCESS_STATE
-#
-# Sendmail is used explicitly here so that we can specify the 'from' address.
 
 doc = """\
 sesmail.py [-p processname] [-a] [-o string] [-m emailto] [-f emailfrom]
@@ -28,6 +26,8 @@ crashmail.py -p program1 -p group1:program2 -m dev@example.com
 
 import os
 import sys
+import commands
+import re
 
 from supervisor import childutils
 
@@ -38,17 +38,31 @@ def usage():
     sys.exit(255)
 
 class SesMail:
+    """Provide email through SES when programs exit unexpectedly.
+    """
 
-    def __init__(self, programs, any, emailto, emailfrom, optionalheader):
+    def __init__(self, programs=[], any=False, emailto=None, emailfrom=None, region=None, aws_id=None, 
+            aws_secret=None, optionalheader=None):
 
         self.programs = programs
         self.any = any
         self.emailto = emailto
         self.emailfrom = emailfrom
+        self.region = region
+        self.aws_id = aws_id
+        self.aws_secret = aws_secret
         self.optionalheader = optionalheader
         self.stdin = sys.stdin
         self.stdout = sys.stdout
         self.stderr = sys.stderr
+
+        code, stdoutbak = commands.getstatusoutput('ec2metadata')
+        if code != 0:
+            raise Exception('ec2metadata did not run correctly')
+        mt = re.search('instance-id:\\s+(.*)', stdoutbak)
+        if not mt:
+            raise Exception('ec2metadata did not contain instance-id')
+        self.instance_id = mt.groups(0)[0]
 
     def runforever(self, test=False):
         while 1:
@@ -75,7 +89,12 @@ class SesMail:
                     break
                 continue
 
-            msg = ('Process %(processname)s in group %(groupname)s exited '
+            pheaders['program'] = self.program
+            pheaders['region'] = self.region
+            pheaders['instance-id'] = self.instance_id
+
+            msg = ('Process %(processname)s (%(program)s), in group %(groupname)s, '
+                   'on instance %(instance-id)s, in region %(region)s exited '
                    'unexpectedly (pid %(pid)s) from state %(from_state)s' %
                    pheaders)
 
@@ -94,7 +113,12 @@ class SesMail:
                 break
 
     def mail(self, subject, msg):
-        conn = boto.ses.connect_to_region(self.region, aws_access_key_id=self.aws_id, aws_secret_access_key=self.aws_secret)
+        dakwargs = {'region': self.region}
+        if self.aws_id:
+            dakwargs['aws_access_key'] = self.aws_id
+        if self.aws_secret:
+            dakwargs['aws_secret_access_key'] = self.aws_secret
+        conn = boto.ses.connect_to_region(**dakwargs)
         resp = conn.send_email(self.from_email, subject, msg, [self.to_email])
         self.stderr.write('SES Response:\n%s\n' % resp)
         self.stderr.write('Mailed:\n\n%s\n' % msg)
@@ -110,6 +134,8 @@ def main(argv=sys.argv):
         "emailto=",
         "emailfrom=",
         "region=",
+        "aws_id=",
+        "aws_secret=",
         ]
     arguments = argv[1:]
     try:
@@ -117,11 +143,9 @@ def main(argv=sys.argv):
     except:
         usage()
 
-    programs = []
-    any = False
-    emailto = None
-    emailfrom = None
-    optionalheader = None
+    dakwargs = {}
+    dakwargs['programs'] = []
+    dakwargs['any'] = False
 
     for option, value in opts:
 
@@ -129,27 +153,36 @@ def main(argv=sys.argv):
             usage()
 
         if option in ('-p', '--program'):
-            programs.append(value)
+            dakwargs['programs'].append(value)
 
         if option in ('-a', '--any'):
-            any = True
+            dakwargs['any'] = True
 
         if option in ('-m', '--emailto'):
-            emailto = value
+            dakwargs['emailto'] = value
 
         if option in ('-f', '--emailfrom'):
-            emailfrom = value
+            dakwargs['emailfrom'] = value
+
+        if option in ('-r', '--region'):
+            dakwargs['region'] = value
 
         if option in ('-o', '--optionalheader'):
-            optionalheader = value
+            dakwargs['optionalheader'] = value
+
+        if option in ('--aws_id'):
+            dakwargs['aws_id'] = value
+
+        if option in ('--aws_secret'):
+            dakwargs['aws_secret'] = value
 
     if not 'SUPERVISOR_SERVER_URL' in os.environ:
-        sys.stderr.write('crashmail must be run as a supervisor event '
+        sys.stderr.write('sesmail must be run as a supervisor event '
                          'listener\n')
         sys.stderr.flush()
         return
 
-    prog = SesMail(programs, any, emailto, emailfrom, optionalheader)
+    prog = SesMail(**dakwargs)
     prog.runforever()
 
 if __name__ == '__main__':
