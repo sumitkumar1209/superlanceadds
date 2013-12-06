@@ -102,9 +102,6 @@ class SesMail:
             if self.optionalheader:
                 subject = self.optionalheader + ':' + subject
 
-            self.stderr.write('unexpected exit, mailing\n')
-            self.stderr.flush()
-
             self.mail(subject, msg)
 
             childutils.listener.ok(self.stdout)
