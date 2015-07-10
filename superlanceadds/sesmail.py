@@ -12,8 +12,9 @@
 # events=PROCESS_STATE
 
 doc = """\
-sesmail.py [-p processname1,processname2,...] [-e processname1,processname2,...] [-a] [-o string] [-m emailto] [-f emailfrom]
-Specifying -a overrides any
+sesmail.py [-p processname] [-e processname] [-a] [-o string] [-m emailto] [-f emailfrom]
+The -p and -e option may be specified more than once, allowing for
+specification of multiple processes.  Specifying -a overrides any
 selection of -p.
 
 A sample invocation:
@@ -65,7 +66,8 @@ class SesMail:
             headers, payload = childutils.listener.wait(self.stdin, self.stdout)
             pheaders, pdata = childutils.eventdata(payload + '\n')
             pheaders['eventname'] = headers['eventname'].split('_')[-1]
-            if not headers['eventname'] == 'PROCESS_STATE_EXITED' and not pheaders['from_state'] == 'EXITED' and not\
+            self.stderr.write(str(self.excluded))
+            if not headers['eventname'] == 'PROCESS_STATE_EXITED' and not pheaders['from_state'] == 'EXITED' and not \
                     headers['eventname'] == 'PROCESS_STATE_FATAL':
                 # do nothing with non-TICK events
                 childutils.listener.ok(self.stdout)
@@ -77,18 +79,18 @@ class SesMail:
             if not self.any and pheaders['processname'] not in self.programs:
                 # do nothing with processes not asked
                 childutils.listener.ok(self.stdout)
-                continue                         
+                continue
             msg = ('Process %(processname)s, in group %(groupname)s, '
                    ' moved to %(eventname)s from state %(from_state)s' %
                    pheaders)
-            
+
             subject = ' %s %s at %s' % (pheaders['processname'], pheaders['eventname'],
-                                             childutils.get_asctime())
+                                        childutils.get_asctime())
             if self.optionalheader:
                 subject = self.optionalheader + ':' + subject
-            
+
             self.mail(subject, msg)
-            
+
             childutils.listener.ok(self.stdout)
 
     def mail(self, subject, msg):
@@ -106,10 +108,11 @@ class SesMail:
 def main(argv=sys.argv):
     import getopt
 
-    short_args = "hp:ao:m:f:r:"
+    short_args = "hp:ao:e:m:f:r:"
     long_args = [
         "help",
         "program=",
+        "exclude=",
         "any",
         "optionalheader="
         "emailto=",
@@ -126,20 +129,18 @@ def main(argv=sys.argv):
 
     dakwargs = {}
     dakwargs['programs'] = []
+    dakwargs['excluded'] = []
     dakwargs['any'] = False
-
     for option, value in opts:
 
         if option in ('-h', '--help'):
             usage()
 
         if option in ('-p', '--program'):
-            val = value.split(',')
-            dakwargs['programs'] = [process.split() for process in val]
-        
+            dakwargs['programs'].append(value)
+
         if option in ('-e', '--exclude'):
-            val = value.split(',')
-            dakwargs['excluded'] = [process.split() for process in val]
+            dakwargs['excluded'].append(value)
 
         if option in ('-a', '--any'):
             dakwargs['any'] = True
@@ -162,7 +163,7 @@ def main(argv=sys.argv):
         if option in ('--aws_secret'):
             dakwargs['aws_secret'] = value
 
-    if not 'SUPERVISOR_SERVER_URL' in os.environ:
+    if 'SUPERVISOR_SERVER_URL' not in os.environ:
         sys.stderr.write('sesmail must be run as a supervisor event '
                          'listener\n')
         sys.stderr.flush()
