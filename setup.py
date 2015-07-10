@@ -22,36 +22,34 @@ setup(name='superlanceadds',
       description='moar superlance plugins for supervisord',
       long_description=README,
       classifiers=[
-        "Development Status :: 3 - Alpha",
-        'Environment :: No Input/Output (Daemon)',
-        'Intended Audience :: System Administrators',
-        'Natural Language :: English',
-        'Operating System :: POSIX',
-        'Topic :: System :: Boot',
-        'Topic :: System :: Monitoring',
-        'Topic :: System :: Systems Administration',
-        ],
-      author='Rob Ottaway',
-      author_email='robottaway@gmail.com',
-      maintainer = "Rob Ottaway",
-      maintainer_email = "robottaway@gmail.com",
-      url='http://github.org/robottaway',
-      keywords = 'supervisor monitoring aws ec2',
-      packages = find_packages(),
+          "Development Status :: 3 - Alpha",
+          'Environment :: No Input/Output (Daemon)',
+          'Intended Audience :: System Administrators',
+          'Natural Language :: English',
+          'Operating System :: POSIX',
+          'Topic :: System :: Boot',
+          'Topic :: System :: Monitoring',
+          'Topic :: System :: Systems Administration',
+      ],
+      author='Sumit Kumar',
+      author_email='sumitkumar1209@gmail.com',
+      maintainer="Sumit Kumar",
+      maintainer_email="sumitkumar1209@gmail.com",
+      url='http://github.org/sumitkumar1209',
+      keywords='supervisor monitoring aws ec2',
+      packages=find_packages(),
       include_package_data=True,
       zip_safe=False,
       install_requires=[
-            'supervisor',
-            ],
+          'supervisor',
+      ],
       tests_require=[
-            'supervisor',
-            'mock',
-            ],
+          'supervisor',
+          'mock',
+      ],
       test_suite='superlanceadds.tests',
-      entry_points = """\
+      entry_points="""\
       [console_scripts]
       sesmail = superlanceadds.sesmail:main
       """
       )
-
-

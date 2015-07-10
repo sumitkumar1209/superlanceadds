@@ -2,53 +2,55 @@
 
 # A event listener meant to be subscribed to PROCESS_STATE_CHANGE
 # events.  It will send mail when processes that are children of
-# supervisord transition unexpectedly to the EXITED state.
-
+# supervisord transition unexpectedly to the EXITED state and when they goto
+# STARTING event from EXITED event
 # A supervisor config snippet that tells supervisor to use this script
 # as a listener is below.
 #
 # [eventlistener:sesmail]
-# command=/usr/bin/sesmail -o hostname -a -m notify-on-crash@domain.com -f crash-notifier@domain.com'
+# command=/usr/local/bin/sesmail -o hostname -a -m notify-on-crash@domain.com -f crash-notifier@domain.com'
 # events=PROCESS_STATE
 
 doc = """\
-sesmail.py [-p processname] [-a] [-o string] [-m emailto] [-f emailfrom]
-
-The -p option may be specified more than once, allowing for
-specification of multiple processes.  Specifying -a overrides any
+sesmail.py [-p processname1,processname2,...] [-e processname1,processname2,...] [-a] [-o string] [-m emailto] [-f emailfrom]
+Specifying -a overrides any
 selection of -p.
 
 A sample invocation:
 
-crashmail.py -p program1 -p group1:program2 -m dev@example.com
+crashmail.py -p program1,group1:program2 -m dev@example.com
 
 """
 
 import os
 import sys
-import commands
-import re
 
 from supervisor import childutils
 
 import boto.ses
 
+
 def usage():
     print doc
     sys.exit(255)
+
 
 class SesMail:
     """Provide email through SES when programs exit unexpectedly.
     """
 
-    def __init__(self, programs=[], any=False, emailto=None, emailfrom=None, region=None, aws_id=None, 
-            aws_secret=None, optionalheader=None):
+    def __init__(self, programs=None, excluded=None, any=False, emailto=None, emailfrom=None, aws_id=None,
+                 aws_secret=None, optionalheader=None):
 
+        if not excluded:
+            excluded = []
+        if not programs:
+            programs = []
         self.programs = programs
+        self.excluded = excluded
         self.any = any
         self.emailto = emailto
         self.emailfrom = emailfrom
-        self.region = region
         self.aws_id = aws_id
         self.aws_secret = aws_secret
         self.optionalheader = optionalheader
@@ -56,57 +58,38 @@ class SesMail:
         self.stdout = sys.stdout
         self.stderr = sys.stderr
 
-        code, stdoutbak = commands.getstatusoutput('ec2metadata')
-        if code != 0:
-            raise Exception('ec2metadata did not run correctly')
-        mt = re.search('instance-id:\\s+(.*)', stdoutbak)
-        if not mt:
-            raise Exception('ec2metadata did not contain instance-id')
-        self.instance_id = mt.groups(0)[0]
-
-    def runforever(self, test=False):
+    def runforever(self):
         while 1:
             # we explicitly use self.stdin, self.stdout, and self.stderr
             # instead of sys.* so we can unit test this code
             headers, payload = childutils.listener.wait(self.stdin, self.stdout)
-
-            if not headers['eventname'] == 'PROCESS_STATE_EXITED':
+            pheaders, pdata = childutils.eventdata(payload + '\n')
+            pheaders['eventname'] = headers['eventname'].split('_')[-1]
+            if not headers['eventname'] == 'PROCESS_STATE_EXITED' and not pheaders['from_state'] == 'EXITED' and not\
+                    headers['eventname'] == 'PROCESS_STATE_FATAL':
                 # do nothing with non-TICK events
                 childutils.listener.ok(self.stdout)
-                if test:
-                    self.stderr.write('non-exited event\n')
-                    self.stderr.flush()
-                    break
                 continue
-
-            pheaders, pdata = childutils.eventdata(payload+'\n')
-
-            if int(pheaders['expected']):
+            if pheaders['processname'] in self.excluded:
+                # do nothing with excluded processes
                 childutils.listener.ok(self.stdout)
-                if test:
-                    self.stderr.write('expected exit\n')
-                    self.stderr.flush()
-                    break
                 continue
-
-            pheaders['region'] = self.region
-            pheaders['instance-id'] = self.instance_id
-
+            if not self.any and pheaders['processname'] not in self.programs:
+                # do nothing with processes not asked
+                childutils.listener.ok(self.stdout)
+                continue                         
             msg = ('Process %(processname)s, in group %(groupname)s, '
-                   'on instance %(instance-id)s, in region %(region)s exited '
-                   'unexpectedly (pid %(pid)s) from state %(from_state)s' %
+                   ' moved to %(eventname)s from state %(from_state)s' %
                    pheaders)
-
-            subject = ' %s crashed at %s' % (pheaders['processname'],
+            
+            subject = ' %s %s at %s' % (pheaders['processname'], pheaders['eventname'],
                                              childutils.get_asctime())
             if self.optionalheader:
                 subject = self.optionalheader + ':' + subject
-
+            
             self.mail(subject, msg)
-
+            
             childutils.listener.ok(self.stdout)
-            if test:
-                break
 
     def mail(self, subject, msg):
         dakwargs = {}
@@ -114,15 +97,17 @@ class SesMail:
             dakwargs['aws_access_key_id'] = self.aws_id
         if self.aws_secret:
             dakwargs['aws_secret_access_key'] = self.aws_secret
-        conn = boto.ses.connect_to_region(self.region, **dakwargs)
+        conn = boto.ses.SESConnection(**dakwargs)
         resp = conn.send_email(self.emailfrom, subject, msg, [self.emailto])
         self.stderr.write('SES Response:\n%s\n' % resp)
         self.stderr.write('Mailed:\n\n%s\n' % msg)
 
+
 def main(argv=sys.argv):
     import getopt
-    short_args="hp:ao:m:f:r:"
-    long_args=[
+
+    short_args = "hp:ao:m:f:r:"
+    long_args = [
         "help",
         "program=",
         "any",
@@ -132,7 +117,7 @@ def main(argv=sys.argv):
         "region=",
         "aws_id=",
         "aws_secret=",
-        ]
+    ]
     arguments = argv[1:]
     try:
         opts, args = getopt.getopt(arguments, short_args, long_args)
@@ -149,7 +134,12 @@ def main(argv=sys.argv):
             usage()
 
         if option in ('-p', '--program'):
-            dakwargs['programs'].append(value)
+            val = value.split(',')
+            dakwargs['programs'] = [process.split() for process in val]
+        
+        if option in ('-e', '--exclude'):
+            val = value.split(',')
+            dakwargs['excluded'] = [process.split() for process in val]
 
         if option in ('-a', '--any'):
             dakwargs['any'] = True
@@ -181,7 +171,6 @@ def main(argv=sys.argv):
     prog = SesMail(**dakwargs)
     prog.runforever()
 
+
 if __name__ == '__main__':
     main()
-
-
