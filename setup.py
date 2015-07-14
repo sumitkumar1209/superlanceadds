@@ -52,5 +52,6 @@ setup(name='superlanceadds',
       entry_points="""\
       [console_scripts]
       sesmail = superlanceadds.sesmail:main
+      sesmailcli = superlanceadds.sesmailcmd:main
       """
       )

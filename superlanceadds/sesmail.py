@@ -8,18 +8,12 @@
 # as a listener is below.
 #
 # [eventlistener:sesmail]
-# command=/usr/local/bin/sesmail -o hostname -a -m notify-on-crash@domain.com -f crash-notifier@domain.com'
+# command=/usr/local/bin/sesmail
 # events=PROCESS_STATE
 
 doc = """\
-sesmail.py [-p processname] [-e processname] [-a] [-o string] [-m emailto] [-f emailfrom]
-The -p and -e option may be specified more than once, allowing for
-specification of multiple processes.  Specifying -a overrides any
-selection of -p.
-
 A sample invocation:
-
-crashmail.py -p program1,group1:program2 -m dev@example.com
+sesmail.py
 
 """
 
