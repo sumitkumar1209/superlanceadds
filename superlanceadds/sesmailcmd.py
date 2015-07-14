@@ -25,8 +25,9 @@ crashmail.py -p program1,group1:program2 -m dev@example.com
 
 import os
 import sys
-import ConfigParser
+
 from supervisor import childutils
+
 import boto.ses
 
 
@@ -103,14 +104,64 @@ class SesMail:
         self.stderr.write('SES Response:\n%s\n' % resp)
         self.stderr.write('Mailed:\n\n%s\n' % msg)
 
-def main():
-    config = ConfigParser.ConfigParser()
-    config.read("/etc/superlanceadds.conf")
-    dakwargs = dict(programs=config.get("Processes", 'Include').split(','),
-                    excluded=config.get("Processes", "Exclude").split(','),
-                    any=bool(config.get("Processes", "All")), aws_id=config.get("Credentials", "AwsId"),
-                    aws_secret=config.get("Credentials", "AwsSecret"), emailfrom=config.get("Email", "From"),
-                    emailto=config.get("Email", "To").split(','))
+
+def main(argv=sys.argv):
+    import getopt
+
+    short_args = "hp:ao:e:m:f:r:"
+    long_args = [
+        "help",
+        "program=",
+        "exclude=",
+        "any",
+        "optionalheader="
+        "emailto=",
+        "emailfrom=",
+        "region=",
+        "aws_id=",
+        "aws_secret=",
+    ]
+    arguments = argv[1:]
+    try:
+        opts, args = getopt.getopt(arguments, short_args, long_args)
+    except:
+        usage()
+
+    dakwargs = {}
+    dakwargs['programs'] = []
+    dakwargs['excluded'] = []
+    dakwargs['any'] = False
+    for option, value in opts:
+
+        if option in ('-h', '--help'):
+            usage()
+
+        if option in ('-p', '--program'):
+            dakwargs['programs'].append(value)
+
+        if option in ('-e', '--exclude'):
+            dakwargs['excluded'].append(value)
+
+        if option in ('-a', '--any'):
+            dakwargs['any'] = True
+
+        if option in ('-m', '--emailto'):
+            dakwargs['emailto'] = value
+
+        if option in ('-f', '--emailfrom'):
+            dakwargs['emailfrom'] = value
+
+        if option in ('-r', '--region'):
+            dakwargs['region'] = value
+
+        if option in ('-o', '--optionalheader'):
+            dakwargs['optionalheader'] = value
+
+        if option in ('--aws_id'):
+            dakwargs['aws_id'] = value
+
+        if option in ('--aws_secret'):
+            dakwargs['aws_secret'] = value
 
     if 'SUPERVISOR_SERVER_URL' not in os.environ:
         sys.stderr.write('sesmail must be run as a supervisor event '

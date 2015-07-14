@@ -16,4 +16,6 @@ events=PROCESS_STATE</b></p>
 sesmail.py [-p processname] [-e processname] [-a] [-o string] [-m emailto] [-f emailfrom]<br>
 The -p and -e option may be specified more than once, allowing for specification of multiple processes.  Specifying -a overrides any selection of -p.
 A sample invocation:
-crashmail.py -p program1,group1:program2 -m dev@example.com
+crashmail.py -p program1,group1:program2 -m dev@example.com<br>
+
+config file is present in /etc/superlanceadds.conf

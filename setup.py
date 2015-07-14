@@ -12,14 +12,14 @@ from setuptools import setup, find_packages
 
 here = os.path.abspath(os.path.dirname(__file__))
 try:
-    README = open(os.path.join(here, 'README.txt')).read()
+    README = open(os.path.join(here, 'README.md')).read()
 except (IOError, OSError):
     README = ''
 
 setup(name='superlanceadds',
-      version='0.1.1-dev',
+      version='0.1.2-dev',
       license='BSD-derived (http://www.repoze.org/LICENSE.txt)',
-      description='moar superlance plugins for supervisord',
+      description='sesmail superlance plugin for supervisord',
       long_description=README,
       classifiers=[
           "Development Status :: 3 - Alpha",
@@ -31,6 +31,7 @@ setup(name='superlanceadds',
           'Topic :: System :: Monitoring',
           'Topic :: System :: Systems Administration',
       ],
+      data_files=[('/etc', ['superlanceadds.conf'])],
       author='Sumit Kumar',
       author_email='sumitkumar1209@gmail.com',
       maintainer="Sumit Kumar",
